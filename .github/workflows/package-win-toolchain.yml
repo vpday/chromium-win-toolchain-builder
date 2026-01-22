@@ -71,29 +71,36 @@ jobs:
       - name: Clean up MSVC versions
         shell: powershell
         run: |
-          $msvcRoot = "C:\Program Files\Microsoft Visual Studio\${{ env.VS_VERSION }}\Enterprise\VC\Tools\MSVC"
-          Write-Host "Checking MSVC versions at: $msvcRoot"
+          $vsRoot = "C:\Program Files\Microsoft Visual Studio\${{ env.VS_VERSION }}\Enterprise"
 
-          if (Test-Path $msvcRoot) {
-            $versions = Get-ChildItem -Path $msvcRoot -Directory | Sort-Object Name -Descending
+          $pathsToClean = @(
+            "$vsRoot\VC\Tools\MSVC",
+            "$vsRoot\VC\redist\MSVC"
+          )
 
-            Write-Host "Found versions:"
-            $versions | ForEach-Object { Write-Host " - $($_.Name)" }
+          foreach ($targetPath in $pathsToClean) {
+            Write-Host "`nChecking: $targetPath"
 
-            if ($versions.Count -gt 1) {
-              Write-Host "Multiple MSVC versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
+            if (Test-Path $targetPath) {
+              $versions = Get-ChildItem -Path $targetPath -Directory | Sort-Object Name -Descending
 
-              $versions | Select-Object -Skip 1 | ForEach-Object {
-                Write-Host "Removing old version: $($_.Name)..."
-                Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Stop
+              Write-Host "Found versions:"
+              $versions | ForEach-Object { Write-Host " - $($_.Name)" }
+
+              if ($versions.Count -gt 1) {
+                Write-Host "Multiple versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
+
+                $versions | Select-Object -Skip 1 | ForEach-Object {
+                  Write-Host "Removing old version: $($_.Name)..."
+                  Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Stop
+                }
+                Write-Host "Cleanup complete for this path." -ForegroundColor Green
+              } else {
+                Write-Host "Single version found. No cleanup needed." -ForegroundColor Green
               }
-              Write-Host "Cleanup complete." -ForegroundColor Green
             } else {
-              Write-Host "Single MSVC version found. No cleanup needed." -ForegroundColor Green
+              Write-Host "Path not found: $targetPath" -ForegroundColor Yellow
             }
-          } else {
-            Write-Error "MSVC root directory not found!"
-            exit 1
           }
 
       - name: Package Toolchain
