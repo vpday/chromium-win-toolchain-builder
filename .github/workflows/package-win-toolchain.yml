@@ -114,29 +114,10 @@ jobs:
           echo Starting packaging process...
           python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }} --noarm
 
-      - name: Rename Artifact File
-        id: rename
-        shell: powershell
-        working-directory: depot_tools\win_toolchain
-        run: |
-          $targetName = "win_toolchain_${{ inputs.chromium_version }}_${{ matrix.os }}_vs${{ env.VS_VERSION }}_sdk${{ env.SDK_VERSION }}.zip"
-
-          $zipFile = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
-
-          if ($zipFile) {
-            Rename-Item -Path $zipFile.FullName -NewName $targetName
-            Write-Host "Renamed $($zipFile.Name) to $targetName"
-            echo "artifact_name=$targetName" >> $env:GITHUB_OUTPUT
-            echo "artifact_path=depot_tools/win_toolchain/$targetName" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Error: No ZIP file generated." -ForegroundColor Red
-            exit 1
-          }
-
       - name: Upload Toolchain Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.rename.outputs.artifact_name }}
-          path: ${{ steps.rename.outputs.artifact_path }}
+          name: win_toolchain_chromium-${{ inputs.chromium_version }}_${{ matrix.os }}_vs-${{ env.VS_VERSION }}_sdk-${{ env.SDK_VERSION }}
+          path: depot_tools/win_toolchain/*.zip
           if-no-files-found: error
-          compression-level: 9
+          compression-level: 0
