@@ -40,7 +40,7 @@ jobs:
           Write-Host "Resolved Hash: $hash"
           echo "DEPOT_TOOLS_HASH=$hash" >> $env:GITHUB_ENV
 
-      - name: Checkout depot_tools (Precise & Light)
+      - name: Checkout depot_tools
         shell: bash
         run: |
           echo "Cloning depot_tools at commit: $DEPOT_TOOLS_HASH"
@@ -60,11 +60,39 @@ jobs:
           Write-Host "Checking for SDK at: $sdkPath"
 
           if (Test-Path $sdkPath) {
-            Write-Host "✅ SDK ${{ env.SDK_VERSION }} found on ${{ matrix.os }}." -ForegroundColor Green
+            Write-Host "SDK ${{ env.SDK_VERSION }} found on ${{ matrix.os }}." -ForegroundColor Green
           } else {
-            Write-Host "❌ SDK ${{ env.SDK_VERSION }} NOT found on ${{ matrix.os }}!" -ForegroundColor Red
+            Write-Host "SDK ${{ env.SDK_VERSION }} NOT found on ${{ matrix.os }}!" -ForegroundColor Red
             Write-Host "Available SDKs:"
             Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" | Select-Object Name
+            exit 1
+          }
+
+      - name: Clean up MSVC versions
+        shell: powershell
+        run: |
+          $msvcRoot = "C:\Program Files\Microsoft Visual Studio\${{ env.VS_VERSION }}\Enterprise\VC\Tools\MSVC"
+          Write-Host "Checking MSVC versions at: $msvcRoot"
+
+          if (Test-Path $msvcRoot) {
+            $versions = Get-ChildItem -Path $msvcRoot -Directory | Sort-Object Name -Descending
+
+            Write-Host "Found versions:"
+            $versions | ForEach-Object { Write-Host " - $($_.Name)" }
+
+            if ($versions.Count -gt 1) {
+              Write-Host "Multiple MSVC versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
+
+              $versions | Select-Object -Skip 1 | ForEach-Object {
+                Write-Host "Removing old version: $($_.Name)..."
+                Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Stop
+              }
+              Write-Host "Cleanup complete." -ForegroundColor Green
+            } else {
+              Write-Host "Single MSVC version found. No cleanup needed." -ForegroundColor Green
+            }
+          } else {
+            Write-Error "MSVC root directory not found!"
             exit 1
           }
 
