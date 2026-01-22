@@ -82,13 +82,15 @@ jobs:
             Write-Host "`nChecking: $targetPath"
 
             if (Test-Path $targetPath) {
-              $versions = Get-ChildItem -Path $targetPath -Directory | Sort-Object Name -Descending
+              $versions = Get-ChildItem -Path $targetPath -Directory |
+                          Where-Object { $_.Name -match '^\d+\.' } |
+                          Sort-Object Name -Descending
 
-              Write-Host "Found versions:"
+              Write-Host "Found numeric versions:"
               $versions | ForEach-Object { Write-Host " - $($_.Name)" }
 
               if ($versions.Count -gt 1) {
-                Write-Host "Multiple versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
+                Write-Host "Multiple numeric versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
 
                 $versions | Select-Object -Skip 1 | ForEach-Object {
                   Write-Host "Removing old version: $($_.Name)..."
@@ -96,7 +98,7 @@ jobs:
                 }
                 Write-Host "Cleanup complete for this path." -ForegroundColor Green
               } else {
-                Write-Host "Single version found. No cleanup needed." -ForegroundColor Green
+                Write-Host "Single numeric version found. No cleanup needed." -ForegroundColor Green
               }
             } else {
               Write-Host "Path not found: $targetPath" -ForegroundColor Yellow
