@@ -1,0 +1,92 @@
+name: Package Windows Toolchain
+
+on:
+  workflow_dispatch:
+    inputs:
+      chromium_version:
+        description: 'Target Chromium Version'
+        required: true
+        default: '144.0.7559.96'
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      VS_VERSION: '2022'
+      SDK_VERSION: '10.0.26100.0'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          path: src
+
+      - name: Checkout depot_tools
+        uses: actions/checkout@v6
+        with:
+          repository: chromium/depot_tools
+          path: depot_tools
+          fetch-depth: 0
+
+      - name: Pin depot_tools Version
+        shell: bash
+        run: |
+          python src/utils/pin_depot_tools.py "${{ inputs.chromium_version }}"
+
+      - name: Verify Windows SDK
+        shell: powershell
+        run: |
+          $sdkPath = "C:\Program Files (x86)\Windows Kits\10\Include\${{ env.SDK_VERSION }}"
+          Write-Host "Checking for SDK at: $sdkPath"
+
+          if (Test-Path $sdkPath) {
+            Write-Host "✅ SDK ${{ env.SDK_VERSION }} found on ${{ matrix.os }}." -ForegroundColor Green
+          } else {
+            Write-Host "❌ SDK ${{ env.SDK_VERSION }} NOT found on ${{ matrix.os }}!" -ForegroundColor Red
+            Write-Host "Available SDKs:"
+            Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" | Select-Object Name
+            exit 1
+          }
+
+      - name: Package Toolchain
+        shell: cmd
+        working-directory: depot_tools\win_toolchain
+        env:
+          DEPOT_TOOLS_WIN_TOOLCHAIN: 0
+        run: |
+          echo Starting packaging process...
+          python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }} --noarm
+
+      - name: Rename Artifact File
+        id: rename
+        shell: powershell
+        working-directory: depot_tools\win_toolchain
+        run: |
+          $targetName = "win_toolchain_${{ inputs.chromium_version }}_${{ matrix.os }}_vs${{ env.VS_VERSION }}_sdk${{ env.SDK_VERSION }}.zip"
+
+          # Find the generated zip (usually a hash name)
+          $zipFile = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
+
+          if ($zipFile) {
+            Rename-Item -Path $zipFile.FullName -NewName $targetName
+            Write-Host "Renamed $($zipFile.Name) to $targetName"
+            echo "artifact_name=$targetName" >> $env:GITHUB_OUTPUT
+            echo "artifact_path=depot_tools/win_toolchain/$targetName" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Error: No ZIP file generated." -ForegroundColor Red
+            exit 1
+          }
+
+      - name: Upload Toolchain Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.rename.outputs.artifact_name }}
+          path: ${{ steps.rename.outputs.artifact_path }}
+          if-no-files-found: error
+          compression-level: 9
