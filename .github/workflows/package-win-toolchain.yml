@@ -27,17 +27,31 @@ jobs:
         with:
           path: src
 
-      - name: Checkout depot_tools
-        uses: actions/checkout@v6
-        with:
-          repository: chromium/depot_tools
-          path: depot_tools
-          fetch-depth: 0
+      - name: Resolve depot_tools Hash
+        shell: powershell
+        run: |
+          $hash = python src/utils/pin_depot_tools.py "${{ inputs.chromium_version }}"
 
-      - name: Pin depot_tools Version
+          if (-not $hash) {
+            Write-Error "Failed to resolve depot_tools hash."
+            exit 1
+          }
+
+          Write-Host "Resolved Hash: $hash"
+          echo "DEPOT_TOOLS_HASH=$hash" >> $env:GITHUB_ENV
+
+      - name: Checkout depot_tools (Precise & Light)
         shell: bash
         run: |
-          python src/utils/pin_depot_tools.py "${{ inputs.chromium_version }}"
+          echo "Cloning depot_tools at commit: $DEPOT_TOOLS_HASH"
+
+          mkdir depot_tools
+          cd depot_tools
+          git init
+          git remote add origin https://chromium.googlesource.com/chromium/tools/depot_tools.git
+
+          git fetch --depth 1 origin $DEPOT_TOOLS_HASH
+          git reset --hard FETCH_HEAD
 
       - name: Verify Windows SDK
         shell: powershell
@@ -70,7 +84,6 @@ jobs:
         run: |
           $targetName = "win_toolchain_${{ inputs.chromium_version }}_${{ matrix.os }}_vs${{ env.VS_VERSION }}_sdk${{ env.SDK_VERSION }}.zip"
 
-          # Find the generated zip (usually a hash name)
           $zipFile = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
 
           if ($zipFile) {
