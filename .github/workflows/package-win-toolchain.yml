@@ -8,14 +8,12 @@ on:
         required: true
         default: '144.0.7559.96'
 
+permissions:
+  contents: write
+
 jobs:
   package:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-2022, windows-2025]
-
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-2025
 
     env:
       VS_VERSION: '2022'
@@ -60,9 +58,9 @@ jobs:
           Write-Host "Checking for SDK at: $sdkPath"
 
           if (Test-Path $sdkPath) {
-            Write-Host "SDK ${{ env.SDK_VERSION }} found on ${{ matrix.os }}." -ForegroundColor Green
+            Write-Host "SDK ${{ env.SDK_VERSION }} found."
           } else {
-            Write-Host "SDK ${{ env.SDK_VERSION }} NOT found on ${{ matrix.os }}!" -ForegroundColor Red
+            Write-Host "SDK ${{ env.SDK_VERSION }} NOT found!"
             Write-Host "Available SDKs:"
             Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Include" | Select-Object Name
             exit 1
@@ -111,13 +109,39 @@ jobs:
         env:
           DEPOT_TOOLS_WIN_TOOLCHAIN: 0
         run: |
-          echo Starting packaging process...
-          python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }} --noarm
+          python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }}
 
-      - name: Upload Toolchain Artifact
-        uses: actions/upload-artifact@v4
+      - name: Repackage with 7z
+        shell: powershell
+        working-directory: depot_tools\win_toolchain
+        run: |
+          $sourceZip = Get-ChildItem *.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if ($sourceZip) {
+            Write-Host "Found generated package: $($sourceZip.Name)"
+            $targetName = "${{ env.ARTIFACT_NAME }}"
+            Write-Host "Repackaging into: $targetName"
+
+            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=0
+
+            if (Test-Path $targetName) {
+                Write-Host "Repackaging successful."
+                $newItem = Get-Item $targetName
+                echo "RELEASE_ASSET_PATH=$($newItem.FullName)" >> $env:GITHUB_ENV
+            } else {
+                Write-Error "Failed to create 7z package."
+                exit 1
+            }
+          } else {
+            Write-Error "No source zip file generated!"
+            exit 1
+          }
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        if: success()
         with:
-          name: win_toolchain_chromium-${{ inputs.chromium_version }}_${{ matrix.os }}_vs-${{ env.VS_VERSION }}_sdk-${{ env.SDK_VERSION }}
-          path: depot_tools/win_toolchain/*.zip
-          if-no-files-found: error
-          compression-level: 0
+          tag_name: ${{ inputs.chromium_version }}
+          name: Chromium Toolchain ${{ inputs.chromium_version }}
+          files: ${{ env.RELEASE_ASSET_PATH }}
+          fail_on_unmatched_files: true
