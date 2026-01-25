@@ -120,10 +120,10 @@ jobs:
 
           if ($sourceZip) {
             Write-Host "Found generated package: $($sourceZip.Name)"
-            $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).zip"
+            $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).tar"
             Write-Host "Repackaging into: $targetName"
 
-            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=0 -v1g
+            7z a -ttar $targetName "$($sourceZip.FullName)" -v1g
 
             $volumes = Get-ChildItem "$targetName.*"
             if ($volumes.Count -gt 0) {
