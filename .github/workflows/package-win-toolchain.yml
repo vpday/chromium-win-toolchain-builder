@@ -119,7 +119,7 @@ jobs:
 
           if ($sourceZip) {
             Write-Host "Found generated package: $($sourceZip.Name)"
-            $targetName = "${{ env.ARTIFACT_NAME }}"
+            $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).zip"
             Write-Host "Repackaging into: $targetName"
 
             7z a -tzip $targetName "$($sourceZip.FullName)" -mx=0
