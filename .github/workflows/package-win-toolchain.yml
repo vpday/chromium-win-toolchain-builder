@@ -18,6 +18,7 @@ jobs:
     env:
       VS_VERSION: '2022'
       SDK_VERSION: '10.0.26100.0'
+      CHROMIUM_VERSION: ${{ inputs.chromium_version }}
 
     steps:
       - name: Checkout Repository
@@ -122,7 +123,7 @@ jobs:
             $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).zip"
             Write-Host "Repackaging into: $targetName"
 
-            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=0
+            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=9
 
             if (Test-Path $targetName) {
                 Write-Host "Repackaging successful."
