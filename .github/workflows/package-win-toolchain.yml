@@ -129,8 +129,10 @@ jobs:
             if ($volumes.Count -gt 0) {
                 Write-Host "Repackaging successful. Generated volumes:"
                 $volumes | ForEach-Object { Write-Host " - $($_.Name)" }
-                $wildcardPath = "$($volumes[0].DirectoryName)\$targetName.*"
-                echo "RELEASE_ASSET_PATH=$wildcardPath" >> $env:GITHUB_ENV
+                $rawPath = "$($volumes[0].DirectoryName)\$targetName.*"
+                $normalizedPath = $rawPath -replace '\\', '/'
+                Write-Host "Setting RELEASE_ASSET_PATH to: $normalizedPath"
+                echo "RELEASE_ASSET_PATH=$normalizedPath" >> $env:GITHUB_ENV
             } else {
                 Write-Error "Failed to create 7z package volumes."
                 exit 1
