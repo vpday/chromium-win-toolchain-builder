@@ -123,14 +123,16 @@ jobs:
             $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).zip"
             Write-Host "Repackaging into: $targetName"
 
-            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=9
+            7z a -tzip $targetName "$($sourceZip.FullName)" -mx=0 -v1g
 
-            if (Test-Path $targetName) {
-                Write-Host "Repackaging successful."
-                $newItem = Get-Item $targetName
-                echo "RELEASE_ASSET_PATH=$($newItem.FullName)" >> $env:GITHUB_ENV
+            $volumes = Get-ChildItem "$targetName.*"
+            if ($volumes.Count -gt 0) {
+                Write-Host "Repackaging successful. Generated volumes:"
+                $volumes | ForEach-Object { Write-Host " - $($_.Name)" }
+                $wildcardPath = "$($volumes[0].DirectoryName)\$targetName.*"
+                echo "RELEASE_ASSET_PATH=$wildcardPath" >> $env:GITHUB_ENV
             } else {
-                Write-Error "Failed to create 7z package."
+                Write-Error "Failed to create 7z package volumes."
                 exit 1
             }
           } else {
