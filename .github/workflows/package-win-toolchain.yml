@@ -162,7 +162,7 @@ jobs:
             $notesPath = "$env:GITHUB_WORKSPACE\release_notes.md"
 
             $notesContent = @(
-                "### 📦 Package Verification",
+                "### Package Verification",
                 "",
                 "**Source File:** ``$($sourceZip.Name)``",
                 "",
