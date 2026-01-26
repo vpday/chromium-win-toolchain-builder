@@ -161,18 +161,18 @@ jobs:
 
             $notesPath = "$env:GITHUB_WORKSPACE\release_notes.md"
 
-            $notesContent = @"
-            ### 📦 Package Verification
-
-            **Source File:** ``$($sourceZip.Name)``
-
-            | Algorithm | Hash |
-            |-----------|------|
-            | **SHA256** | ``$sha256`` |
-            | **SHA512** | ``$sha512`` |
-
-            > Note: These hashes correspond to the inner source zip file (created by depot_tools) before it was split-compressed into tar archives.
-            "@
+            $notesContent = @(
+                "### 📦 Package Verification",
+                "",
+                "**Source File:** ``$($sourceZip.Name)``",
+                "",
+                "| Algorithm | Hash |",
+                "|-----------|------|",
+                "| **SHA256** | ``$sha256`` |",
+                "| **SHA512** | ``$sha512`` |",
+                "",
+                "> Note: These hashes correspond to the inner source zip file (created by depot_tools) before it was split-compressed into tar archives."
+            )
 
             Set-Content -Path $notesPath -Value $notesContent -Encoding utf8
             Write-Host "Release notes generated successfully at: $notesPath"
