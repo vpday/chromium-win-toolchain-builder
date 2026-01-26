@@ -142,6 +142,45 @@ jobs:
             exit 1
           }
 
+      - name: Generate Release Notes
+        shell: powershell
+        working-directory: depot_tools\win_toolchain
+        run: |
+          $sourceZip = Get-ChildItem *.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+
+          if ($sourceZip) {
+            Write-Host "Found source package for hashing: $($sourceZip.Name)"
+
+            Write-Host "Calculating SHA256..."
+            $sha256 = (Get-FileHash -Path $sourceZip.FullName -Algorithm SHA256).Hash
+            Write-Host "SHA256: $sha256"
+
+            Write-Host "Calculating SHA512..."
+            $sha512 = (Get-FileHash -Path $sourceZip.FullName -Algorithm SHA512).Hash
+            Write-Host "SHA512: $sha512"
+
+            $notesPath = "$env:GITHUB_WORKSPACE\release_notes.md"
+
+            $notesContent = @"
+            ### 📦 Package Verification
+
+            **Source File:** ``$($sourceZip.Name)``
+
+            | Algorithm | Hash |
+            |-----------|------|
+            | **SHA256** | ``$sha256`` |
+            | **SHA512** | ``$sha512`` |
+
+            > Note: These hashes correspond to the inner source zip file (created by depot_tools) before it was split-compressed into tar archives.
+            "@
+
+            Set-Content -Path $notesPath -Value $notesContent -Encoding utf8
+            Write-Host "Release notes generated successfully at: $notesPath"
+          } else {
+            Write-Error "No source zip file found to hash!"
+            exit 1
+          }
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         if: success()
@@ -149,4 +188,5 @@ jobs:
           tag_name: ${{ inputs.chromium_version }}
           name: Chromium Toolchain ${{ inputs.chromium_version }}
           files: ${{ env.RELEASE_ASSET_PATH }}
+          body_path: release_notes.md
           fail_on_unmatched_files: true
