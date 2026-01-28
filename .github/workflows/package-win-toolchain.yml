@@ -12,8 +12,15 @@ permissions:
   contents: write
 
 jobs:
-  package:
+  build_toolchain:
+    name: Build (${{ matrix.config.type }})
     runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - { type: 'full',  args: '' }
+          - { type: 'noarm', args: '--noarm' }
 
     env:
       VS_VERSION: '2022'
@@ -27,7 +34,7 @@ jobs:
           path: src
 
       - name: Resolve depot_tools Hash
-        shell: powershell
+        shell: pwsh
         run: |
           $hash = python src/utils/pin_depot_tools.py "${{ inputs.chromium_version }}"
 
@@ -53,7 +60,7 @@ jobs:
           git reset --hard FETCH_HEAD
 
       - name: Verify Windows SDK
-        shell: powershell
+        shell: pwsh
         run: |
           $sdkPath = "C:\Program Files (x86)\Windows Kits\10\Include\${{ env.SDK_VERSION }}"
           Write-Host "Checking for SDK at: $sdkPath"
@@ -68,14 +75,10 @@ jobs:
           }
 
       - name: Clean up MSVC versions
-        shell: powershell
+        shell: pwsh
         run: |
           $vsRoot = "C:\Program Files\Microsoft Visual Studio\${{ env.VS_VERSION }}\Enterprise"
-
-          $pathsToClean = @(
-            "$vsRoot\VC\Tools\MSVC",
-            "$vsRoot\VC\redist\MSVC"
-          )
+          $pathsToClean = @("$vsRoot\VC\Tools\MSVC", "$vsRoot\VC\redist\MSVC")
 
           foreach ($targetPath in $pathsToClean) {
             Write-Host "`nChecking: $targetPath"
@@ -89,18 +92,18 @@ jobs:
               $versions | ForEach-Object { Write-Host " - $($_.Name)" }
 
               if ($versions.Count -gt 1) {
-                Write-Host "Multiple numeric versions detected. Keeping the latest one: $($versions[0].Name)" -ForegroundColor Yellow
+                Write-Host "Multiple numeric versions detected. Keeping the latest one: $($versions[0].Name)"
 
                 $versions | Select-Object -Skip 1 | ForEach-Object {
                   Write-Host "Removing old version: $($_.Name)..."
                   Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction Stop
                 }
-                Write-Host "Cleanup complete for this path." -ForegroundColor Green
+                Write-Host "Cleanup complete for this path."
               } else {
-                Write-Host "Single numeric version found. No cleanup needed." -ForegroundColor Green
+                Write-Host "Single numeric version found. No cleanup needed."
               }
             } else {
-              Write-Host "Path not found: $targetPath" -ForegroundColor Yellow
+              Write-Host "Path not found: $targetPath"
             }
           }
 
@@ -110,76 +113,110 @@ jobs:
         env:
           DEPOT_TOOLS_WIN_TOOLCHAIN: 0
         run: |
-          python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }}
+          python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }} ${{ matrix.config.args }}
 
-      - name: Repackage with 7z
-        shell: powershell
-        working-directory: depot_tools\win_toolchain
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: toolchain-artifact-${{ matrix.config.type }}
+          path: depot_tools/win_toolchain/*.zip
+          retention-days: 1
+
+  release_toolchain:
+    needs: build_toolchain
+    runs-on: windows-2025
+    env:
+      VS_VERSION: '2022'
+      SDK_VERSION: '10.0.26100.0'
+      CHROMIUM_VERSION: ${{ inputs.chromium_version }}
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Process Artifacts (Hash & Repackage)
+        shell: pwsh
         run: |
-          $sourceZip = Get-ChildItem *.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $releaseFiles = @()
+          $notesContent = @("### Package Verification", "", "| Variant | Original File | SHA256 | SHA512 |", "|---|---|---|---|")
 
-          if ($sourceZip) {
-            Write-Host "Found generated package: $($sourceZip.Name)"
-            $targetName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION).tar"
-            Write-Host "Repackaging into: $targetName"
+          $artifactDirs = Get-ChildItem -Path "artifacts" -Directory
 
-            7z a -ttar $targetName "$($sourceZip.FullName)" -v1g
+          foreach ($dir in $artifactDirs) {
+            Write-Host "Processing Artifact: $($dir.Name)"
 
-            $volumes = Get-ChildItem "$targetName.*"
-            if ($volumes.Count -gt 0) {
-                Write-Host "Repackaging successful. Generated volumes:"
-                $volumes | ForEach-Object { Write-Host " - $($_.Name)" }
-                $rawPath = "$($volumes[0].DirectoryName)\$targetName.*"
-                $normalizedPath = $rawPath -replace '\\', '/'
-                Write-Host "Setting RELEASE_ASSET_PATH to: $normalizedPath"
-                echo "RELEASE_ASSET_PATH=$normalizedPath" >> $env:GITHUB_ENV
-            } else {
-                Write-Error "Failed to create 7z package volumes."
-                exit 1
+            $zip = Get-ChildItem -Path $dir.FullName -Filter "*.zip" | Select-Object -First 1
+            if (-not $zip) {
+                Write-Warning "No zip file found in $($dir.Name)"
+                continue
             }
-          } else {
-            Write-Error "No source zip file generated!"
-            exit 1
+
+            $variantName = "Unknown"
+            $targetBaseName = "win_toolchain_chromium-$($env:CHROMIUM_VERSION)_vs-$($env:VS_VERSION)_sdk-$($env:SDK_VERSION)"
+
+            if ($dir.Name -match "full") {
+                $variantName = "Full (With ARM)"
+            } elseif ($dir.Name -match "noarm") {
+                $variantName = "No ARM"
+                $targetBaseName += "_noarm"
+            }
+
+            Write-Host "Original File: $($zip.Name)"
+            Write-Host "Target Base Name: $targetBaseName"
+
+            Write-Host "Calculating Hashes..."
+            $sha256 = (Get-FileHash -Path $zip.FullName -Algorithm SHA256).Hash
+            $sha512 = (Get-FileHash -Path $zip.FullName -Algorithm SHA512).Hash
+
+            $notesContent += "| **$variantName** | ``$($zip.Name)`` | ``$sha256`` | ``$sha512`` |"
+
+            $targetTarName = "$targetBaseName.tar"
+
+            $sizeGB = $zip.Length / 1GB
+            Write-Host "File Size: $($sizeGB.ToString('N2')) GB"
+
+            if ($zip.Length -gt 2147483648) {
+                Write-Host "Size > 2GB. Creating split TAR archive..."
+                7z a -ttar "$targetTarName" "$($zip.FullName)" -v1g
+
+                $volumes = Get-ChildItem "$targetTarName.*"
+                if ($volumes) {
+                    $volumes | ForEach-Object {
+                        Write-Host "Generated: $($_.Name)"
+                        $releaseFiles += $_.FullName
+                    }
+                } else {
+                    Write-Error "Failed to create split volumes."
+                    exit 1
+                }
+            } else {
+                Write-Host "Size <= 2GB. Creating single TAR archive..."
+                7z a -ttar "$targetTarName" "$($zip.FullName)"
+
+                if (Test-Path $targetTarName) {
+                    Write-Host "Generated: $targetTarName"
+                    $releaseFiles += (Get-Item $targetTarName).FullName
+                } else {
+                    Write-Error "Failed to create tar archive."
+                    exit 1
+                }
+            }
           }
 
-      - name: Generate Release Notes
-        shell: powershell
-        working-directory: depot_tools\win_toolchain
-        run: |
-          $sourceZip = Get-ChildItem *.zip | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $notesContent += ""
+          $notesContent += "> **Note:** The hashes above are for the **inner source ZIP file** (generated by depot_tools)."
+          $notesContent += "> The release files are TAR archives containing this ZIP file."
 
-          if ($sourceZip) {
-            Write-Host "Found source package for hashing: $($sourceZip.Name)"
+          $notesPath = "$env:GITHUB_WORKSPACE\release_notes.md"
+          $notesContent | Out-File -FilePath $notesPath -Encoding utf8
+          Write-Host "Release notes generated."
 
-            Write-Host "Calculating SHA256..."
-            $sha256 = (Get-FileHash -Path $sourceZip.FullName -Algorithm SHA256).Hash
-            Write-Host "SHA256: $sha256"
-
-            Write-Host "Calculating SHA512..."
-            $sha512 = (Get-FileHash -Path $sourceZip.FullName -Algorithm SHA512).Hash
-            Write-Host "SHA512: $sha512"
-
-            $notesPath = "$env:GITHUB_WORKSPACE\release_notes.md"
-
-            $notesContent = @(
-                "### Package Verification",
-                "",
-                "**Source File:** ``$($sourceZip.Name)``",
-                "",
-                "| Algorithm | Hash |",
-                "|-----------|------|",
-                "| **SHA256** | ``$sha256`` |",
-                "| **SHA512** | ``$sha512`` |",
-                "",
-                "> Note: These hashes correspond to the inner source zip file (created by depot_tools) before it was split-compressed into tar archives."
-            )
-
-            Set-Content -Path $notesPath -Value $notesContent -Encoding utf8
-            Write-Host "Release notes generated successfully at: $notesPath"
-          } else {
-            Write-Error "No source zip file found to hash!"
-            exit 1
-          }
+          $releaseFilesStr = ($releaseFiles | ForEach-Object { $_ -replace '\\', '/' }) -join "`n"
+          "RELEASE_FILES<<EOF" >> $env:GITHUB_ENV
+          $releaseFilesStr >> $env:GITHUB_ENV
+          "EOF" >> $env:GITHUB_ENV
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
@@ -187,6 +224,6 @@ jobs:
         with:
           tag_name: ${{ inputs.chromium_version }}
           name: Chromium Toolchain ${{ inputs.chromium_version }}
-          files: ${{ env.RELEASE_ASSET_PATH }}
           body_path: release_notes.md
+          files: ${{ env.RELEASE_FILES }}
           fail_on_unmatched_files: true
