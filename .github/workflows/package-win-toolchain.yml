@@ -107,6 +107,51 @@ jobs:
             }
           }
 
+      - name: Install Windows SDK Debuggers
+        shell: pwsh
+        run: |
+          $debuggersPath = "C:\Program Files (x86)\Windows Kits\10\Debuggers"
+          Write-Host "Checking for Debuggers at: $debuggersPath"
+
+          if (-not (Test-Path "$debuggersPath\x86\dbghelp.dll")) {
+            Write-Host "Debuggers not found. Downloading Windows SDK 10.0.26100 Installer..."
+
+            $setupUrl = "https://download.microsoft.com/download/5b75beb2-d0fa-4b8e-8e06-a3edc3647ca5/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe"
+            $installerPath = "$env:TEMP\winsdksetup.exe"
+
+            try {
+                Write-Host "Downloading from: $setupUrl"
+                Invoke-WebRequest -Uri $setupUrl -OutFile $installerPath -ErrorAction Stop
+                Write-Host "Installer downloaded to $installerPath"
+            } catch {
+                Write-Error "Failed to download SDK installer. Error: $_"
+                exit 1
+            }
+
+            $fileSize = (Get-Item $installerPath).Length
+            if ($fileSize -lt 1000000) {
+                Write-Error "Downloaded file is too small ($fileSize bytes). Likely a broken link or HTML page."
+                exit 1
+            }
+
+            Write-Host "Installing Debugging Tools for Windows..."
+
+            $process = Start-Process -FilePath $installerPath -ArgumentList "/features OptionId.WindowsDesktopDebuggers /q /norestart /ceip off" -PassThru -Wait
+
+            Write-Host "Installer Exit Code: $($process.ExitCode)"
+
+            if (Test-Path "$debuggersPath\x86\dbghelp.dll") {
+                Write-Host "SUCCESS: Debuggers installed successfully."
+                $versionInfo = (Get-Item "$debuggersPath\x86\dbghelp.dll").VersionInfo
+                Write-Host "Installed dbghelp.dll version: $($versionInfo.FileVersion)"
+            } else {
+                Write-Error "FAILURE: Installation finished but dbghelp.dll is still missing."
+                exit 1
+            }
+          } else {
+            Write-Host "Debuggers already present. Skipping installation."
+          }
+
       - name: Package Toolchain
         shell: cmd
         working-directory: depot_tools\win_toolchain
