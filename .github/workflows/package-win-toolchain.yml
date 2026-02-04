@@ -224,7 +224,7 @@ jobs:
 
             if ($zip.Length -gt 2147483648) {
                 Write-Host "Size > 2GB. Creating split TAR archive..."
-                7z a -ttar "$targetTarName" "$($zip.FullName)" -v1g
+                7z a -ttar "$targetTarName" "$($zip.FullName)" -v1792m
 
                 $volumes = Get-ChildItem "$targetTarName.*"
                 if ($volumes) {
