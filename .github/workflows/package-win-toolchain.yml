@@ -114,9 +114,11 @@ jobs:
           Write-Host "Checking for Debuggers at: $debuggersPath"
 
           if (-not (Test-Path "$debuggersPath\x86\dbghelp.dll")) {
-            Write-Host "Debuggers not found. Downloading Windows SDK 10.0.26100 Installer..."
+            Write-Host "Debuggers not found. Downloading Windows SDK 10.0.26100.7705 Installer..."
 
-            $setupUrl = "https://download.microsoft.com/download/5b75beb2-d0fa-4b8e-8e06-a3edc3647ca5/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe"
+            # Windows SDK for Windows 11 (10.0.26100.7705)
+            # https://learn.microsoft.com/en-us/windows/apps/windows-sdk/downloads
+            $setupUrl = "https://download.microsoft.com/download/f4b30f2a-4fc3-430e-9b03-c842b5f5f9f1/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe"
             $installerPath = "$env:TEMP\winsdksetup.exe"
 
             try {
