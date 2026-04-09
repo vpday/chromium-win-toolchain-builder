@@ -6,7 +6,7 @@ on:
       chromium_version:
         description: 'Target Chromium Version'
         required: true
-        default: '144.0.7559.96'
+        default: '147.0.7727.55'
 
 permissions:
   contents: write
@@ -14,7 +14,7 @@ permissions:
 jobs:
   build_toolchain:
     name: Build (${{ matrix.config.type }})
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     strategy:
       fail-fast: false
       matrix:
@@ -23,7 +23,7 @@ jobs:
           - { type: 'noarm', args: '--noarm' }
 
     env:
-      VS_VERSION: '2022'
+      VS_VERSION: '2026'
       SDK_VERSION: '10.0.26100.0'
       CHROMIUM_VERSION: ${{ inputs.chromium_version }}
 
@@ -163,23 +163,24 @@ jobs:
           python package_from_installed.py ${{ env.VS_VERSION }} -w ${{ env.SDK_VERSION }} ${{ matrix.config.args }}
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: toolchain-artifact-${{ matrix.config.type }}
           path: depot_tools/win_toolchain/*.zip
           retention-days: 1
+          compression-level: 0
 
   release_toolchain:
     needs: build_toolchain
-    runs-on: windows-2025
+    runs-on: windows-2025-vs2026
     env:
-      VS_VERSION: '2022'
+      VS_VERSION: '2026'
       SDK_VERSION: '10.0.26100.0'
       CHROMIUM_VERSION: ${{ inputs.chromium_version }}
 
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
