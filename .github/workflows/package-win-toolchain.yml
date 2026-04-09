@@ -77,9 +77,17 @@ jobs:
       - name: Clean up MSVC versions
         shell: pwsh
         run: |
-          $vsRoot = "C:\Program Files\Microsoft Visual Studio\${{ env.VS_VERSION }}\Enterprise"
-          $pathsToClean = @("$vsRoot\VC\Tools\MSVC", "$vsRoot\VC\redist\MSVC")
+          $vswherePath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 
+          Write-Host "Running vswhere to detect Visual Studio path..."
+          $vsRoot = & $vswherePath -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsRoot) {
+            Write-Error "Could not find Visual Studio installation via vswhere!"
+            exit 1
+          }
+          Write-Host "Detected Visual Studio Root: $vsRoot"
+
+          $pathsToClean = @("$vsRoot\VC\Tools\MSVC", "$vsRoot\VC\redist\MSVC")
           foreach ($targetPath in $pathsToClean) {
             Write-Host "`nChecking: $targetPath"
 
