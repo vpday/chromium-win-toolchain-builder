@@ -2,7 +2,7 @@
 
 This project builds and packages the Windows Toolchain required for compiling Chromium.
 
-Designed to run within GitHub Actions, it extracts headers and libraries from Visual Studio 2022 and the Windows SDK, packaging them into a format compatible with `depot_tools`. This enables Chromium cross-compilation on non-Windows platforms like Linux.
+Designed to run within GitHub Actions, it extracts headers and libraries from Visual Studio 2026 and the Windows SDK, packaging them into a format compatible with `depot_tools`. This enables Chromium cross-compilation on non-Windows platforms like Linux.
 
 > [!DANGER]
 > **WARNING: DO NOT RUN THIS SCRIPT LOCALLY**
