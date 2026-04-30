@@ -23,8 +23,8 @@ Designed to run within GitHub Actions, it extracts headers and libraries from Vi
 
 This project relies on the following GitHub Actions Runner environment:
 
-* **OS**: `windows-2025`
-* **Visual Studio**: Enterprise 2022
+* **OS**: `windows-2025-vs2026`
+* **Visual Studio**: Enterprise 2026
 * **Windows SDK**: `10.0.26100.0`
 
 > **Note**: Chromium builds strictly require SDK version `10.0.26100.0`. If the environment does not match, the build will fail.
