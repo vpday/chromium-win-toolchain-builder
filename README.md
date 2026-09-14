@@ -25,9 +25,9 @@ This project relies on the following GitHub Actions Runner environment:
 
 * **OS**: `windows-2025-vs2026`
 * **Visual Studio**: Enterprise 2026
-* **Windows SDK**: `10.0.26100.0`
+* **Windows SDK**: `10.0.28000.0`
 
-> **Note**: Chromium builds strictly require SDK version `10.0.26100.0`. If the environment does not match, the build will fail.
+> **Note**: Chromium builds strictly require SDK version `10.0.28000.0`. If the environment does not match, the build will fail.
 
 ## Usage
 
