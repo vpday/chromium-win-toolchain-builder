@@ -69,12 +69,12 @@ jobs:
             exit 0
           }
 
-          Write-Host "Downloading Windows SDK for Windows 11 (10.0.28000.2705) installer..."
-          $installerUrl = "https://download.microsoft.com/download/38ab8f6d-3676-4860-ae84-3361308b9d7f/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe"
+          Write-Host "Downloading Windows SDK for Windows 11 (10.0.28000.2957) installer..."
+          $installerUrl = "https://download.microsoft.com/download/e6cfffdc-0d3e-4c6c-96d7-d491da459a07/KIT_BUNDLE_WINDOWSSDK_MEDIACREATION/winsdksetup.exe"
           $installerPath = "$env:TEMP\winsdksetup.exe"
           Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -ErrorAction Stop
 
-          Write-Host "Installing Windows SDK for Windows 11 (10.0.28000.2705)..."
+          Write-Host "Installing Windows SDK for Windows 11 (10.0.28000.2957)..."
           $features = "/features OptionId.DesktopCPPx64 OptionId.DesktopCPPx86 OptionId.DesktopCPPArm64 OptionId.WindowsDesktopDebuggers OptionId.UWPCPP OptionId.SigningTools /q /norestart /ceip off"
           $proc = Start-Process -FilePath $installerPath -ArgumentList $features -PassThru -Wait
 
